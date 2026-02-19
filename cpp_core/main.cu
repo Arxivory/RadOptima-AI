@@ -11,7 +11,7 @@ namespace py = pybind11;
 
 class RadEngine {
 private:
-    GLuint volumeTexture = 0;
+    GLuint volumeTexture = 0, shaderProgram;
     int width = 0, height = 0, depth = 0;
 
 public:
@@ -54,6 +54,26 @@ public:
 
         cout << "Successfully uploaded " << width << "x" << height << "x" << depth
             << " volume to GPU Texture ID: " << volumeTexture << endl;
+    }
+
+    void compile_shader(const char* vertexSource, const char* fragmentSource) {
+        GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, 1, &vertexSource, NULL);
+        glCompileShader(vertexShader);
+
+        GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragmentShader, 1, &fragmentSource, NULL);
+        glCompileShader(fragmentShader);
+
+        shaderProgram = glCreateProgram();
+        glAttachShader(shaderProgram, vertexShader);
+        glAttachShader(shaderProgram, fragmentShader);
+        
+        glLinkProgram(shaderProgram);
+
+        glUseProgram(shaderProgram);
+
+        cout << "Shader Program is Compiled and Active." << endl;
     }
 };
 
