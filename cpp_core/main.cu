@@ -2,12 +2,18 @@
 #include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 
 using namespace std;
 
 namespace py = pybind11;
 
 class RadEngine {
+private:
+    GLuint volumeTexture = 0;
+    int width = 0, height = 0, depth = 0;
+
 public:
     RadEngine() {
         cout << "Engine Initialized." << endl;
