@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <windows.h>
 
 using namespace std;
 using namespace glm;
@@ -27,10 +28,27 @@ public:
     }
 
     void init_opengl() {
-        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-            throw runtime_error("Failed to initialize GLAD");
+        std::cout << "[C++] Bypassing GLFW to find OpenGL Context..." << std::endl;
+
+        HMODULE libGL = GetModuleHandleA("opengl32.dll");
+        if (!libGL) {
+            throw std::runtime_error("Could not find opengl32.dll. Is a GPU driver installed?");
         }
-        cout << "Engine: OpenGL " << GLVersion.major << "." << GLVersion.minor << " ready." << endl;
+
+        auto wgl_get_proc_address = (void* (WINAPI*)(const char*))GetProcAddress(libGL, "wglGetProcAddress");
+
+        if (!gladLoadGLLoader((GLADloadproc)wgl_get_proc_address)) {
+            if (!gladLoadGL()) {
+                throw std::runtime_error("GLAD Fail: No current OpenGL context found. Make sure Python called make_context_current.");
+            }
+        }
+
+        if (glGenTextures == nullptr) {
+            throw std::runtime_error("GLAD loaded but function pointers are NULL. Context mismatch.");
+        }
+
+        std::cout << "SUCCESS: OpenGL Context captured from Python!" << std::endl;
+        std::cout << "GPU: " << glGetString(GL_RENDERER) << std::endl;
     }
 
     void setup_cube() {
@@ -127,7 +145,12 @@ public:
         glm::mat4 invModel = glm::inverse(modelMatrix);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "invModel"), 1, GL_FALSE, &invModel[0][0]);
 
-        glUniform3fv(glGetUniformLocation(shaderProgram, "worldEyePos"), 1, &cameraPos[0]);
+        glUniform3fv(glGetUniformLocation(shaderProgram, "eyePos"), 1, &cameraPos[0]);
+
+        mat4 projection = perspective(radians(45.0f), 800.0f / 800.0f, 0.1f, 100.0f);
+        mat4 view = lookAt(cameraPos, vec3(0.5f, 0.5f, 0.5f), vec3(0, 1, 0));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
     }
 
     void compile_shader(const char* vertexSource, const char* fragmentSource) {
@@ -149,17 +172,23 @@ public:
 
         cout << "Shader Program is Compiled and Active." << endl;
     }
+
+    void render() {
+        glUseProgram(shaderProgram);
+        glBindVertexArray(cubeVAO);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    }
 };
 
 PYBIND11_MODULE(radoptima_core, m) {
     py::class_<RadEngine>(m, "RadEngine")
         .def(py::init<>())
         .def("init_opengl", &RadEngine::init_opengl)
-        .def("upload_volume", &RadEngine::upload_volume);
-
-    m.def("check_cuda", []() {
-        int count;
-        cudaGetDeviceCount(&count);
-        cout << "CUDA Devices: " << count << endl;
-    });
+        .def("setup_cube", &RadEngine::setup_cube)
+        .def("upload_volume", &RadEngine::upload_volume)
+        .def("set_window_level", &RadEngine::set_window_level)
+        .def("rotate_volume", &RadEngine::rotate_volume)
+        .def("update_uniforms", &RadEngine::update_uniforms)
+        .def("compile_shader", &RadEngine::compile_shader)
+        .def("render", &RadEngine::render);
 }

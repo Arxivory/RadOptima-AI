@@ -16,6 +16,9 @@ from data.dicom_loader import load_dicom_volume
 try:
     import radoptima_core
 
+    
+    print(f"I am loading the engine from: {radoptima_core.__file__}")
+
     data_path = "data/samples/test_scan"
     volume = load_dicom_volume(data_path)
 

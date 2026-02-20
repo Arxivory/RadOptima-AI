@@ -1,25 +1,32 @@
 get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+set(EXTERNAL_LIBS "${PROJECT_ROOT}/Libraries")
+
+# FORCE the output to the root folder so Python finds it instantly
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_ROOT}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_ROOT}")
+
+# FORCE glad.c to be treated as C++ to match main.cu's linker
+set_source_files_properties("${PROJECT_ROOT}/glad.c" PROPERTIES LANGUAGE CXX)
 
 add_library(radoptima_core SHARED 
     main.cu 
     "${PROJECT_ROOT}/glad.c"
 )
 
-set(EXTERNAL_LIBS "${PROJECT_ROOT}/Libraries")
-
+# Standard Includes
 target_include_directories(radoptima_core PRIVATE 
+    "${PROJECT_ROOT}"
     "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/include"
     "${EXTERNAL_LIBS}/include"
 )
 
+# Pybind11 / Python Logic
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c "import pybind11; print(pybind11.get_include())"
     OUTPUT_VARIABLE PYBIND11_INCLUDE_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-
-target_include_directories(radoptima_core PRIVATE "${PYBIND11_INCLUDE_DIR}")
-target_include_directories(radoptima_core PRIVATE "${Python3_INCLUDE_DIRS}")
+target_include_directories(radoptima_core PRIVATE "${PYBIND11_INCLUDE_DIR}" "${Python3_INCLUDE_DIRS}")
 
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c "import sys; import os; print(os.path.join(sys.prefix, 'libs'))"
@@ -28,6 +35,7 @@ execute_process(
 )
 link_directories("${PYTHON_LIB_DIR}")
 
+# Linking
 target_link_libraries(radoptima_core PRIVATE 
     "${EXTERNAL_LIBS}/lib/glfw3.lib"
     opengl32.lib
@@ -37,4 +45,14 @@ target_link_libraries(radoptima_core PRIVATE
     "${Python3_LIBRARIES}"
 )
 
-target_compile_options(radoptima_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/experimental:external /external:W0>)
+set_target_properties(radoptima_core PROPERTIES 
+    PREFIX "" 
+    SUFFIX ".pyd"
+    OUTPUT_NAME "radoptima_core"
+)
+
+# Critical for CUDA in VS2022
+set_target_properties(radoptima_core PROPERTIES 
+    CUDA_ARCHITECTURES 61
+    LINKER_LANGUAGE CXX
+)
