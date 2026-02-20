@@ -48,7 +48,7 @@ def main():
 
 	engine.setup_cube()
 
-	data_path = "data/samples/ct"
+	data_path = "data/samples/chest"
 	volume, volume_scale = load_dicom_volume(data_path)
 
 	engine.upload_volume(volume)
@@ -57,6 +57,8 @@ def main():
 	with open("shaders/raymarch.vert", "r") as f: v_src = f.read()
 	with open("shaders/raymarch.frag", "r") as f: f_src = f.read()
 	engine.compile_shader(v_src, f_src)
+
+	engine.set_window_level(400, 40)
 
 	while not glfw.window_should_close(window):
 		glfw.poll_events()

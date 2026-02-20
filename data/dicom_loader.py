@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 def load_dicom_volume(directory):
-    file_list = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.dcm')]
+    file_list = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.DCM')]
     
     if not file_list:
         raise ValueError(f"No DICOM files found in {directory}")
