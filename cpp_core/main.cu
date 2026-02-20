@@ -26,6 +26,12 @@ public:
         cout << "Engine: OpenGL " << GLVersion.major << "." << GLVersion.minor << " ready." << endl;
     }
 
+    void set_window_level(float width, float level) {
+        glUseProgram(shaderProgram);
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowWidth"), width);
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowLevel"), level);
+    }
+
     void upload_volume(py::array_t<int16_t> numpy_volume) {
         py::buffer_info buf = numpy_volume.request();
 
@@ -43,8 +49,8 @@ public:
 
         glBindTexture(GL_TEXTURE_3D, volumeTexture);
 
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
