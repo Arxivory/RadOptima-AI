@@ -18,6 +18,8 @@ private:
     int width = 0, height = 0, depth = 0;
     float windowWidth = 400, windowLevel = 40;
     mat4 modelMatrix = mat4(1.0f);
+    vec3 cameraPos = vec3(0.5f, 0.5f, 2.0f);
+    unsigned int cubeVAO, cubeVBO, cubeEBO;
 
 public:
     RadEngine() {
@@ -29,6 +31,36 @@ public:
             throw runtime_error("Failed to initialize GLAD");
         }
         cout << "Engine: OpenGL " << GLVersion.major << "." << GLVersion.minor << " ready." << endl;
+    }
+
+    void setup_cube() {
+        float vertices[] = {
+        0,0,0,  1,0,0,  1,1,0,  0,1,0, 
+        0,0,1,  1,0,1,  1,1,1,  0,1,1
+        };
+
+        unsigned int indices[] = {
+            0,1,2, 2,3,0,
+            1,5,6, 6,2,1,
+            7,6,5, 5,4,7,
+            4,0,3, 3,7,4,
+            4,5,1, 1,0,4,
+            3,2,6, 6,7,3
+        };
+
+        glGenVertexArrays(1, &cubeVAO);
+        glGenBuffers(1, &cubeVBO);
+        glGenBuffers(1, &cubeEBO);
+
+        glBindVertexArray(cubeVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
     }
 
     void set_window_level(float width, float level) {
@@ -50,6 +82,13 @@ public:
         for (int i = 0; i < 4; i++)
             for (int j = 0; j < 4; j++)
                 modelMatrix[i][j] = r(i, j);
+    }
+
+    void rotate_volume(float deltaX, float deltaY) {
+        float sensitivity = 0.01f;
+
+        modelMatrix = rotate(modelMatrix, deltaX * sensitivity, glm::vec3(0, 1, 0));
+        modelMatrix = rotate(modelMatrix, deltaY * sensitivity, glm::vec3(1, 0, 0));
     }
 
     void upload_volume(py::array_t<int16_t> numpy_volume) {
@@ -80,6 +119,15 @@ public:
 
         cout << "Successfully uploaded " << width << "x" << height << "x" << depth
             << " volume to GPU Texture ID: " << volumeTexture << endl;
+    }
+
+    void update_uniforms() {
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, &modelMatrix[0][0]);
+
+        glm::mat4 invModel = glm::inverse(modelMatrix);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "invModel"), 1, GL_FALSE, &invModel[0][0]);
+
+        glUniform3fv(glGetUniformLocation(shaderProgram, "worldEyePos"), 1, &cameraPos[0]);
     }
 
     void compile_shader(const char* vertexSource, const char* fragmentSource) {

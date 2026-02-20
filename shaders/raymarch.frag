@@ -8,10 +8,13 @@ uniform isampler3D volumeTexture;
 uniform float windowWidth;
 uniform float windowLevel;
 uniform float stepSize = 0.003;
+uniform mat4 invModel;
 uniform vec3 eyePos;
 
 void main() {
-    vec3 rayDir = normalize(TexCoords - eyePos); 
+    vec3 objEyePos = (invModel * vec4(eyePos, 1.0f)).xyz;
+
+    vec3 rayDir = normalize(TexCoords - objEyePos); 
     vec3 currentPos = TexCoords;
 
     vec4 accumulatedColor = vec4(0.0);
