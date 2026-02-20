@@ -49,9 +49,10 @@ def main():
 	engine.setup_cube()
 
 	data_path = "data/samples/ct"
-	volume = load_dicom_volume(data_path)
+	volume, volume_scale = load_dicom_volume(data_path)
 
 	engine.upload_volume(volume)
+	# engine.set_volume_scale(volume_scale[0], volume_scale[1], volume_scale[2])
 
 	with open("shaders/raymarch.vert", "r") as f: v_src = f.read()
 	with open("shaders/raymarch.frag", "r") as f: f_src = f.read()

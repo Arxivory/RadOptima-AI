@@ -176,6 +176,12 @@ public:
         cout << "Shader Program is Compiled and Active." << endl;
     }
 
+    void set_volume_scale(float sx, float sy, float sz) {
+        modelMatrix = scale(modelMatrix, vec3(sx, sy, sz));
+
+        cout << "Volume Scale Applied: " << sx << ", " << sy << ", " << sz << endl;
+    }
+
     void render() {
         glUseProgram(shaderProgram);
         glBindVertexArray(cubeVAO);
@@ -193,5 +199,6 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("rotate_volume", &RadEngine::rotate_volume)
         .def("update_uniforms", &RadEngine::update_uniforms)
         .def("compile_shader", &RadEngine::compile_shader)
+        .def("set_volume_scale", &RadEngine::set_volume_scale)
         .def("render", &RadEngine::render);
 }
