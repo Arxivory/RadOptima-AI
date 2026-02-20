@@ -126,17 +126,20 @@ public:
 
         glBindTexture(GL_TEXTURE_3D, volumeTexture);
 
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+
+        float borderColor[] = { -1024.0f, 0.0f, 0.0f, 0.0f };
+        glTexParameterfv(GL_TEXTURE_3D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
 
         glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I, width, height, depth, 0,
             GL_RED_INTEGER, GL_SHORT, buf.ptr);
-
-        cout << "Successfully uploaded " << width << "x" << height << "x" << depth
-            << " volume to GPU Texture ID: " << volumeTexture << endl;
     }
 
     void update_uniforms() {

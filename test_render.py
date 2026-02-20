@@ -48,7 +48,7 @@ def main():
 
 	engine.setup_cube()
 
-	data_path = "data/samples/test_scan"
+	data_path = "data/samples/ct"
 	volume = load_dicom_volume(data_path)
 
 	engine.upload_volume(volume)

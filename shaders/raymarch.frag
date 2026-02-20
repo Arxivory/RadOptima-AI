@@ -4,25 +4,30 @@ out vec4 FragColor;
 in vec3 TexCoords; 
 
 uniform isampler3D volumeTexture; 
-
 uniform float windowWidth;
 uniform float windowLevel;
-uniform float stepSize = 0.003;
+uniform float stepSize = 0.002; // Slightly smaller for better detail
 uniform mat4 invModel;
 uniform vec3 eyePos;
+
+float pseudo_random(vec2 co) {
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
 
 void main() {
     vec3 objEyePos = (invModel * vec4(eyePos, 1.0f)).xyz;
 
     vec3 rayDir = normalize(TexCoords - objEyePos); 
-    vec3 currentPos = TexCoords;
+    
+    float jitter = pseudo_random(TexCoords.xy) * stepSize;
+    vec3 currentPos = TexCoords + rayDir * jitter;
 
     vec4 accumulatedColor = vec4(0.0);
     float accumulatedOpacity = 0.0;
 
-    for (int i = 0; i < 256; i++) {
-        if (accumulatedOpacity >= 0.95 || any(greaterThan(currentPos, vec3(1.0))) || any(lessThan(currentPos, vec3(0.0))))
-            break;
+    for (int i = 0; i < 512; i++) {
+        if (accumulatedOpacity >= 0.95) break;
+        if (any(greaterThan(currentPos, vec3(1.0))) || any(lessThan(currentPos, vec3(0.0)))) break;
 
         int rawHU = texture(volumeTexture, currentPos).r;
         float hu = float(rawHU);
@@ -33,7 +38,7 @@ void main() {
 
         float opacity = 0.0;
         if (hu > lowerBound) {
-            opacity = intensity * 0.05;
+            opacity = pow(intensity, 2.0) * 0.05; 
         }
 
         if (opacity > 0.0) {
