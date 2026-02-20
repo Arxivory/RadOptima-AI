@@ -4,8 +4,11 @@
 #include <pybind11/numpy.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 using namespace std;
+using namespace glm;
 
 namespace py = pybind11;
 
@@ -13,6 +16,8 @@ class RadEngine {
 private:
     GLuint volumeTexture = 0, shaderProgram;
     int width = 0, height = 0, depth = 0;
+    float windowWidth = 400, windowLevel = 40;
+    mat4 modelMatrix = mat4(1.0f);
 
 public:
     RadEngine() {
@@ -27,9 +32,24 @@ public:
     }
 
     void set_window_level(float width, float level) {
+        windowWidth = width;
+        windowLevel = level;
+    }
+
+    void update_shader_params() {
         glUseProgram(shaderProgram);
-        glUniform1f(glGetUniformLocation(shaderProgram, "windowWidth"), width);
-        glUniform1f(glGetUniformLocation(shaderProgram, "windowLevel"), level);
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowWidth"), windowWidth);
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowLevel"), windowLevel);
+
+        unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, value_ptr(modelMatrix));
+    }
+
+    void set_model_matrix(py::array_t<float> matrix) {
+        auto r = matrix.unchecked<2>();
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                modelMatrix[i][j] = r(i, j);
     }
 
     void upload_volume(py::array_t<int16_t> numpy_volume) {
