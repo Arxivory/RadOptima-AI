@@ -3,6 +3,9 @@
 out vec4 FragColor;
 in vec3 TexCoords; 
 
+
+uniform float tf_opacity_power;
+uniform float tf_multiplier;
 uniform isampler3D volumeTexture; 
 uniform float windowWidth;
 uniform float windowLevel;

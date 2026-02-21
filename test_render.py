@@ -2,6 +2,7 @@ import sys
 import os
 import glfw
 import numpy as np
+import ctypes
 from data.dicom_loader import load_dicom_volume
 
 
@@ -46,6 +47,9 @@ def main():
 		print(f"C++ Error: {e}")
 		return
 
+	window_addr = ctypes.cast(window, ctypes.c_void_p).value
+	# engine.init_imgui(window_addr)
+
 	engine.setup_cube()
 
 	data_path = "data/samples/chest"
@@ -59,6 +63,8 @@ def main():
 	engine.compile_shader(v_src, f_src)
 
 	engine.set_window_level(400, 40)
+
+	# engine.render_ui()
 
 	while not glfw.window_should_close(window):
 		glfw.poll_events()

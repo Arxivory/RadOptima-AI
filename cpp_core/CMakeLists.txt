@@ -8,9 +8,30 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_ROOT}")
 # FORCE glad.c to be treated as C++ to match main.cu's linker
 set_source_files_properties("${PROJECT_ROOT}/glad.c" PROPERTIES LANGUAGE CXX)
 
+
+# Define the path
+set(IMGUI_DIR "${CMAKE_SOURCE_DIR}/thirdparty/imgui")
+
+# 1. Add headers to include path
+include_directories(${IMGUI_DIR})
+
+# 2. Collect the source files manually
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/imgui_impl_opengl3.cpp
+)
+
+set_source_files_properties(${IMGUI_SOURCES} PROPERTIES LANGUAGE CXX)
+
 add_library(radoptima_core SHARED 
     main.cu 
     "${PROJECT_ROOT}/glad.c"
+    ${IMGUI_SOURCES}
 )
 
 # Standard Includes

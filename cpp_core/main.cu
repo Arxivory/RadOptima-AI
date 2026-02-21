@@ -7,9 +7,14 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <windows.h>
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+#include <cstdint>
 
 using namespace std;
 using namespace glm;
+using namespace ImGui;
 
 namespace py = pybind11;
 
@@ -21,6 +26,7 @@ private:
     mat4 modelMatrix = mat4(1.0f);
     vec3 cameraPos = vec3(0.5f, 0.5f, 2.0f);
     unsigned int cubeVAO, cubeVBO, cubeEBO;
+    float tf_opacity_power = 2.0f, tf_multiplier = 0.05, stepSize = 0.002f;
 
 public:
     RadEngine() {
@@ -49,6 +55,23 @@ public:
 
         std::cout << "SUCCESS: OpenGL Context captured from Python!" << std::endl;
         std::cout << "GPU: " << glGetString(GL_RENDERER) << std::endl;
+    }
+
+    void init_imgui(uintptr_t window_ptr) {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+
+        GLFWwindow* window = reinterpret_cast<GLFWwindow*>(window_ptr);
+
+        if (!window) {
+            throw std::runtime_error("C++ Engine Error: Received null window pointer.");
+        }
+
+        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        ImGui_ImplOpenGL3_Init("#version 450");
+
+        std::cout << "SUCCESS: ImGui attached to Python's GLFW window!" << std::endl;
     }
 
     void setup_cube() {
@@ -93,6 +116,12 @@ public:
 
         unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, value_ptr(modelMatrix));
+
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowWidth"), windowWidth);
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowLevel"), windowLevel);
+        glUniform1f(glGetUniformLocation(shaderProgram, "tf_opacity_power"), tf_opacity_power);
+        glUniform1f(glGetUniformLocation(shaderProgram, "tf_multiplier"), tf_multiplier);
+        glUniform1f(glGetUniformLocation(shaderProgram, "stepSize"), stepSize);
     }
 
     void set_model_matrix(py::array_t<float> matrix) {
@@ -103,6 +132,11 @@ public:
     }
 
     void rotate_volume(float deltaX, float deltaY) {
+        /*ImGuiIO& io = ImGui::GetIO();
+        if (io.WantCaptureMouse) {
+            return;
+        }*/
+
         float sensitivity = 0.01f;
 
         modelMatrix = rotate(modelMatrix, deltaX * sensitivity, glm::vec3(0, 1, 0));
@@ -187,6 +221,23 @@ public:
         glBindVertexArray(cubeVAO);
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     }
+
+    void render_ui() {
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        NewFrame();
+
+        Begin("RadOptima Controls");
+        SliderFloat("Window Width", &windowWidth, 1.0f, 2000.0f);
+        SliderFloat("Window Level", &windowLevel, -1000.0f, 1000.0f);
+        SliderFloat("Opacity Power", &tf_opacity_power, 1.0f, 10.0f);
+        SliderFloat("Opacity Multiplier", &tf_multiplier, 0.001f, 0.2f);
+        SliderFloat("Step Size", &stepSize, 0.0005f, 0.01f);
+        End();
+
+        Render();
+        ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());
+    }
 };
 
 PYBIND11_MODULE(radoptima_core, m) {
@@ -200,5 +251,7 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("update_uniforms", &RadEngine::update_uniforms)
         .def("compile_shader", &RadEngine::compile_shader)
         .def("set_volume_scale", &RadEngine::set_volume_scale)
-        .def("render", &RadEngine::render);
+        .def("render", &RadEngine::render)
+        .def("init_imgui", &RadEngine::init_imgui)
+        .def("render_ui", &RadEngine::render_ui);
 }
