@@ -4,7 +4,7 @@
 
 It features a high-speed **CUDA-accelerated 3D Volume Renderer** and a **Python-based AI pipeline** for real-time CT scan enhancement.
 
-
+**Note:** This project is currently in the early stages of development. The core rendering engine and AI pipeline are being built from scratch, with a focus on performance and modularity.
 
 ---
 
