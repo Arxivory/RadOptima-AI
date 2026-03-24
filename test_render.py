@@ -64,8 +64,6 @@ def main():
 
 	engine.set_window_level(400, 40)
 
-	# engine.render_ui()
-
 	while not glfw.window_should_close(window):
 		glfw.poll_events()
 
