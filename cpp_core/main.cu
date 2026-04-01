@@ -40,6 +40,10 @@ private:
     unsigned int cubeVAO, cubeVBO, cubeEBO;
     float tf_opacity_power = 2.0f, tf_multiplier = 0.05, stepSize = 0.002f;
 
+	vec3 lensCenter = vec3(0.5f, 0.5f, 0.5f);
+    float lensRadius = 0.2f;
+    bool lensEnabled = true;
+
 public:
     RadEngine() {
         cout << "Engine Initialized." << endl;
@@ -116,6 +120,13 @@ public:
     void set_window_level(float width, float level) {
         windowWidth = width;
         windowLevel = level;
+    }
+
+    void update_lens_uniform() {
+        glUseProgram(shaderProgram);
+        glUniform3fv(glGetUniformLocation(shaderProgram, "lensCenter"), 1, value_ptr(lensCenter));
+        glUniform1f(glGetUniformLocation(shaderProgram, "lensRadius"), lensRadius);
+		glUniform1i(glGetUniformLocation(shaderProgram, "lensEnabled"), lensEnabled ? 1 : 0);
     }
 
     void update_shader_params() {
@@ -211,6 +222,8 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
 
+        update_lens_uniform();
+
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_3D, volumeTexture);
         glUniform1i(glGetUniformLocation(shaderProgram, "volumeTexture"), 0);
@@ -267,6 +280,12 @@ public:
         SliderFloat("Opacity Multiplier", &tf_multiplier, 0.001f, 0.2f);
         SliderFloat("Step Size", &stepSize, 0.0005f, 0.01f);
         End();
+
+		Begin("Lens Controls");
+		SliderFloat3("Lens Center", &lensCenter[0], 0.0f, 1.0f);
+		SliderFloat("Lens Radius", &lensRadius, 0.01f, 0.5f);
+		Checkbox("Enable Lens", &lensEnabled);
+		End();
 
         Render();
         ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());

@@ -12,6 +12,10 @@ uniform float stepSize = 0.002;
 uniform mat4 invModel;
 uniform vec3 eyePos;
 
+uniform vec3 lensCenter;
+uniform float lensRadius;
+uniform bool lensEnabled;
+
 float pseudo_random(vec2 co) {
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
@@ -28,11 +32,15 @@ void main() {
 
     for (int i = 0; i < 512; i++) {
         if (accumulatedOpacity >= 0.95) break;
-
         if (any(greaterThan(currentPos, vec3(1.0))) || any(lessThan(currentPos, vec3(0.0)))) break;
 
         int rawHU = texture(volumeTexture, currentPos).r;
         float hu = float(rawHU);
+
+        float dist = distance(currentPos, lensCenter);
+        if (lensEnabled && dist < lensRadius) {
+            hu += 500.0; 
+        }
 
         float lowerBound = windowLevel - (windowWidth / 2.0);
         float normalizedIntensity = (hu - lowerBound) / windowWidth;
@@ -42,6 +50,10 @@ void main() {
         
         float sampleOpacity = tfSample.a * tf_multiplier;
         vec3 sampleColor = tfSample.rgb;
+
+        if (lensEnabled && dist < lensRadius) {
+            sampleColor.g += 0.1;
+        }
 
         if (sampleOpacity > 0.0) {
             float alpha = (1.0 - accumulatedOpacity) * sampleOpacity;
