@@ -3,8 +3,8 @@ import os
 import glfw
 import numpy as np
 import ctypes
+from ctypes import wintypes
 from data.dicom_loader import load_dicom_volume
-
 
 build_path = os.path.join(os.getcwd(), "out", "build", "x64-Debug", "cpp_core")
 
@@ -31,7 +31,8 @@ def main():
 	glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5)
 	glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
 
-	window = glfw.create_window(800, 800, "RadOptima Engine Test", None, None)
+	title = "RadOptima Engine Test"
+	window = glfw.create_window(800, 800, title, None, None)
 	if not window:
 		glfw.terminate()
 		return
@@ -47,8 +48,12 @@ def main():
 		print(f"C++ Error: {e}")
 		return
 
-	window_addr = ctypes.cast(window, ctypes.c_void_p).value
-	# engine.init_imgui(window_addr)
+	hwnd = ctypes.windll.user32.FindWindowW(None, title)
+	if not hwnd:
+		print("Error: Could not find the window handle via Win32 API.")
+		return
+		
+	engine.init_imgui(hwnd)
 
 	engine.setup_cube()
 
@@ -85,6 +90,7 @@ def main():
 		
 		engine.update_uniforms()
 		engine.render()
+		engine.render_ui()
 		glfw.swap_buffers(window)
 
 	glfw.terminate()

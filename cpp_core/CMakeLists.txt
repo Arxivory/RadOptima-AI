@@ -24,6 +24,7 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_impl_glfw.cpp
     ${IMGUI_DIR}/imgui_impl_opengl3.cpp
+    ${IMGUI_DIR}/imgui_impl_win32.cpp
 )
 
 set_source_files_properties(${IMGUI_SOURCES} PROPERTIES LANGUAGE CXX)
@@ -63,6 +64,7 @@ target_link_libraries(radoptima_core PRIVATE
     user32.lib 
     gdi32.lib 
     shell32.lib
+    dwmapi.lib
     "${Python3_LIBRARIES}"
 )
 

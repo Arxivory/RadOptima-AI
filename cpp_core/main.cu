@@ -11,6 +11,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <cstdint>
+#include "imgui_impl_win32.h"
 
 using namespace std;
 using namespace glm;
@@ -57,21 +58,16 @@ public:
         std::cout << "GPU: " << glGetString(GL_RENDERER) << std::endl;
     }
 
-    void init_imgui(uintptr_t window_ptr) {
+    void init_imgui(uintptr_t hwnd_ptr) {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGui::StyleColorsDark();
 
-        GLFWwindow* window = reinterpret_cast<GLFWwindow*>(window_ptr);
+        HWND hwnd = (HWND)hwnd_ptr;
+        if (!hwnd) throw std::runtime_error("Received null HWND.");
 
-        if (!window) {
-            throw std::runtime_error("C++ Engine Error: Received null window pointer.");
-        }
-
-        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        ImGui_ImplWin32_Init(hwnd);
         ImGui_ImplOpenGL3_Init("#version 450");
-
-        std::cout << "SUCCESS: ImGui attached to Python's GLFW window!" << std::endl;
     }
 
     void setup_cube() {
@@ -224,7 +220,7 @@ public:
 
     void render_ui() {
         ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
+        ImGui_ImplWin32_NewFrame();
         NewFrame();
 
         Begin("RadOptima Controls");
