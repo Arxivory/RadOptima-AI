@@ -32,7 +32,7 @@ LRESULT CALLBACK MyWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 class RadEngine {
 private:
-    GLuint volumeTexture = 0, shaderProgram;
+    GLuint volumeTexture = 0, tfTexture = 0, shaderProgram;
     int width = 0, height = 0, depth = 0;
     float windowWidth = 400, windowLevel = 40;
     mat4 modelMatrix = mat4(1.0f);
@@ -185,6 +185,18 @@ public:
             GL_RED_INTEGER, GL_SHORT, buf.ptr);
     }
 
+    void update_transfer_function(py::array_t<float> lut) {
+        py::buffer_info buf = lut.request();
+        if (tfTexture == 0) glGenTextures(1, &tfTexture);
+
+        glBindTexture(GL_TEXTURE_1D, tfTexture);
+        glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA32F, (GLsizei)buf.shape[0], 0, GL_RGBA, GL_FLOAT, buf.ptr);
+
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    }
+
     void update_uniforms() {
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, &modelMatrix[0][0]);
 
@@ -197,6 +209,17 @@ public:
         mat4 view = lookAt(cameraPos, vec3(0.5f, 0.5f, 0.5f), vec3(0, 1, 0));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_3D, volumeTexture);
+        glUniform1i(glGetUniformLocation(shaderProgram, "volumeTexture"), 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_1D, tfTexture);
+        glUniform1i(glGetUniformLocation(shaderProgram, "transferFunction"), 1);
+
+        glUniform1f(glGetUniformLocation(shaderProgram, "tf_multiplier"), tf_multiplier);
+        glUniform1f(glGetUniformLocation(shaderProgram, "stepSize"), stepSize);
     }
 
     void compile_shader(const char* vertexSource, const char* fragmentSource) {
@@ -263,6 +286,7 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("render", &RadEngine::render)
         .def("init_imgui", &RadEngine::init_imgui)
         .def("render_ui", &RadEngine::render_ui)
+        .def("update_transfer_function", &RadEngine::update_transfer_function)
         .def("want_capture_mouse", [](RadEngine& self) {
 		    return ImGui::GetIO().WantCaptureMouse;
         });

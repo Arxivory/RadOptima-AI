@@ -63,6 +63,13 @@ def main():
 	engine.upload_volume(volume)
 	# engine.set_volume_scale(volume_scale[0], volume_scale[1], volume_scale[2])
 
+	tf_data = np.zeros((256, 4), dtype=np.float32)
+	for i in range(256):
+		intensity = i / 255.0
+		tf_data[i] = [intensity, intensity * 0.5, 0.2, intensity] 
+		
+	engine.update_transfer_function(tf_data)
+
 	with open("shaders/raymarch.vert", "r") as f: v_src = f.read()
 	with open("shaders/raymarch.frag", "r") as f: f_src = f.read()
 	engine.compile_shader(v_src, f_src)
