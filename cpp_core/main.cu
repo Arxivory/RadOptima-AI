@@ -32,7 +32,7 @@ LRESULT CALLBACK MyWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 class RadEngine {
 private:
-    GLuint volumeTexture = 0, tfTexture = 0, shaderProgram;
+    GLuint volumeTexture = 0, tfTexture = 0, shaderProgram = 0, volumeTextureAI = 0;
     int width = 0, height = 0, depth = 0;
     float windowWidth = 400, windowLevel = 40;
     mat4 modelMatrix = mat4(1.0f);
@@ -163,6 +163,27 @@ public:
         modelMatrix = rotate(modelMatrix, deltaY * sensitivity, glm::vec3(1, 0, 0));
     }
 
+    void upload_ai_volume(py::array_t<int16_t> numpy_volume) {
+        py::buffer_info buf = numpy_volume.request();
+        int depth = (int)buf.shape[0];
+        int height = (int)buf.shape[1];
+        int width = (int)buf.shape[2];
+
+        if (volumeTextureAI == 0)
+            glGenTextures(1, &volumeTextureAI);
+
+		glBindTexture(GL_TEXTURE_3D, volumeTextureAI);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+        glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I, width, height, depth, 0,
+            GL_RED_INTEGER, GL_SHORT, buf.ptr);
+    }
+
     void upload_volume(py::array_t<int16_t> numpy_volume) {
         py::buffer_info buf = numpy_volume.request();
 
@@ -227,6 +248,10 @@ public:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_3D, volumeTexture);
         glUniform1i(glGetUniformLocation(shaderProgram, "volumeTexture"), 0);
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_3D, volumeTextureAI);
+        glUniform1i(glGetUniformLocation(shaderProgram, "volumeTextureAI"), 2);
 
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_1D, tfTexture);
@@ -307,6 +332,7 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("init_imgui", &RadEngine::init_imgui)
         .def("render_ui", &RadEngine::render_ui)
         .def("update_transfer_function", &RadEngine::update_transfer_function)
+        .def("upload_ai_volume", &RadEngine::upload_ai_volume)
         .def("want_capture_mouse", [](RadEngine& self) {
 		    return ImGui::GetIO().WantCaptureMouse;
         });

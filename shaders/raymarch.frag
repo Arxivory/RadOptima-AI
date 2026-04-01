@@ -16,6 +16,8 @@ uniform vec3 lensCenter;
 uniform float lensRadius;
 uniform bool lensEnabled;
 
+uniform isampler3D volumeTextureAI;
+
 float pseudo_random(vec2 co) {
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
@@ -37,13 +39,21 @@ void main() {
         int rawHU = texture(volumeTexture, currentPos).r;
         float hu = float(rawHU);
 
+        float aiHU = float(texture(volumeTextureAI, currentPos).r);
+
+
         float dist = distance(currentPos, lensCenter);
+        float feather = 0.2 * lensRadius;
+        float weight = 1.0 - smoothstep(lensRadius - feather, lensRadius + feather, dist);
+
+        float finalHU = mix(hu, aiHU, weight * float(lensEnabled));
+
         if (lensEnabled && dist < lensRadius) {
-            hu += 500.0; 
+            hu += (600.0 * weight); 
         }
 
         float lowerBound = windowLevel - (windowWidth / 2.0);
-        float normalizedIntensity = (hu - lowerBound) / windowWidth;
+        float normalizedIntensity = (finalHU - lowerBound) / windowWidth;
         normalizedIntensity = clamp(normalizedIntensity, 0.0, 1.0);
 
         vec4 tfSample = texture(transferFunction, normalizedIntensity);
@@ -52,7 +62,7 @@ void main() {
         vec3 sampleColor = tfSample.rgb;
 
         if (lensEnabled && dist < lensRadius) {
-            sampleColor.g += 0.1;
+            sampleColor.rgb = mix(sampleColor.rgb, sampleColor.rgb + vec3(0.0, 0.2, 0.0), weight);
         }
 
         if (sampleOpacity > 0.0) {

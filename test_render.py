@@ -5,6 +5,7 @@ import numpy as np
 import ctypes
 from ctypes import wintypes
 from data.dicom_loader import load_dicom_volume
+from scipy.ndimage import median_filter
 
 build_path = os.path.join(os.getcwd(), "out", "build", "x64-Debug", "cpp_core")
 
@@ -60,8 +61,11 @@ def main():
 	data_path = "data/samples/chest"
 	volume, volume_scale = load_dicom_volume(data_path)
 
+	print("Generating Mock AI Data (Denoising)...")
+	ai_volume = median_filter(volume, size=3)
+
 	engine.upload_volume(volume)
-	# engine.set_volume_scale(volume_scale[0], volume_scale[1], volume_scale[2])
+	engine.upload_ai_volume(ai_volume)
 
 	tf_data = np.zeros((256, 4), dtype=np.float32)
 	for i in range(256):
