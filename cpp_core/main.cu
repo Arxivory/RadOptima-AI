@@ -197,7 +197,8 @@ public:
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     }
 
-    void update_uniforms() {
+    void update_uniforms(int winW, int winH) {
+        float aspect = (float)winW / (float)winH;
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, &modelMatrix[0][0]);
 
         glm::mat4 invModel = glm::inverse(modelMatrix);
@@ -205,7 +206,7 @@ public:
 
         glUniform3fv(glGetUniformLocation(shaderProgram, "eyePos"), 1, &cameraPos[0]);
 
-        mat4 projection = perspective(radians(45.0f), 800.0f / 800.0f, 0.1f, 100.0f);
+        mat4 projection = perspective(radians(45.0f), aspect, 0.1f, 100.0f);
         mat4 view = lookAt(cameraPos, vec3(0.5f, 0.5f, 0.5f), vec3(0, 1, 0));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);

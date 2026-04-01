@@ -32,7 +32,7 @@ def main():
 	glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
 
 	title = "RadOptima Engine Test"
-	window = glfw.create_window(800, 800, title, None, None)
+	window = glfw.create_window(1280, 720, title, None, None)
 	if not window:
 		glfw.terminate()
 		return
@@ -78,6 +78,7 @@ def main():
 
 	while not glfw.window_should_close(window):
 		glfw.poll_events()
+		width, height = glfw.get_framebuffer_size(window)
 
 		if not engine.want_capture_mouse():
 			if glfw.get_mouse_button(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS:
@@ -96,7 +97,8 @@ def main():
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
-		engine.update_uniforms()
+		engine.update_uniforms(width, height)
+		gl.glViewport(0, 0, width, height)
 		engine.render()
 		engine.render_ui()
 		glfw.swap_buffers(window)
