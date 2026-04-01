@@ -65,6 +65,11 @@ void main() {
             sampleColor.rgb = mix(sampleColor.rgb, sampleColor.rgb + vec3(0.0, 0.2, 0.0), weight);
         }
 
+        if (lensEnabled) {
+            float ring = smoothstep(0.005, 0.0, abs(dist - lensRadius));
+            sampleColor.rgb += vec3(ring);
+        }
+
         if (sampleOpacity > 0.0) {
             float alpha = (1.0 - accumulatedOpacity) * sampleOpacity;
             accumulatedColor.rgb += alpha * sampleColor;
