@@ -72,16 +72,17 @@ def main():
 	while not glfw.window_should_close(window):
 		glfw.poll_events()
 
-		if glfw.get_mouse_button(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS:
-			curr_x, curr_y = glfw.get_cursor_pos(window)
-			if not first_mouse:
-				dx = curr_x - last_x
-				dy = curr_y - last_y
-				engine.rotate_volume(dx, dy)
-			last_x, last_y = curr_x, curr_y
-			first_mouse = False
-		else:
-			first_mouse = True
+		if not engine.want_capture_mouse():
+			if glfw.get_mouse_button(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS:
+				curr_x, curr_y = glfw.get_cursor_pos(window)
+				if not first_mouse:
+					dx = curr_x - last_x
+					dy = curr_y - last_y
+					engine.rotate_volume(dx, dy)
+				last_x, last_y = curr_x, curr_y
+				first_mouse = False
+			else:
+				first_mouse = True
 
 		import OpenGL.GL as gl
 		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)

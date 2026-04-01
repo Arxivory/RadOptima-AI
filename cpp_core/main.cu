@@ -19,6 +19,17 @@ using namespace ImGui;
 
 namespace py = pybind11;
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+static WNDPROC g_GlfwWndProc = NULL;
+
+LRESULT CALLBACK MyWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
+        return true;
+
+    return CallWindowProc(g_GlfwWndProc, hWnd, uMsg, wParam, lParam);
+}
+
 class RadEngine {
 private:
     GLuint volumeTexture = 0, shaderProgram;
@@ -68,6 +79,8 @@ public:
 
         ImGui_ImplWin32_Init(hwnd);
         ImGui_ImplOpenGL3_Init("#version 450");
+
+        g_GlfwWndProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)MyWindowProc);
     }
 
     void setup_cube() {
@@ -249,5 +262,8 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("set_volume_scale", &RadEngine::set_volume_scale)
         .def("render", &RadEngine::render)
         .def("init_imgui", &RadEngine::init_imgui)
-        .def("render_ui", &RadEngine::render_ui);
+        .def("render_ui", &RadEngine::render_ui)
+        .def("want_capture_mouse", [](RadEngine& self) {
+		    return ImGui::GetIO().WantCaptureMouse;
+        });
 }
