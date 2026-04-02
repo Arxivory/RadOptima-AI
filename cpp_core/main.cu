@@ -44,6 +44,8 @@ private:
     float lensRadius = 0.2f;
     bool lensEnabled = true;
 
+    bool diffMode = false;
+
 public:
     RadEngine() {
         cout << "Engine Initialized." << endl;
@@ -122,6 +124,15 @@ public:
         windowLevel = level;
     }
 
+    void set_lens_pos(float x, float y) {
+        lensCenter.x = x;
+        lensCenter.y = 1.0f - y;
+    }
+
+    void set_diff_mode(bool enabled) {
+        diffMode = enabled;
+    }
+
     void update_lens_uniform() {
         glUseProgram(shaderProgram);
         glUniform3fv(glGetUniformLocation(shaderProgram, "lensCenter"), 1, value_ptr(lensCenter));
@@ -152,11 +163,6 @@ public:
     }
 
     void rotate_volume(float deltaX, float deltaY) {
-        /*ImGuiIO& io = ImGui::GetIO();
-        if (io.WantCaptureMouse) {
-            return;
-        }*/
-
         float sensitivity = 0.01f;
 
         modelMatrix = rotate(modelMatrix, deltaX * sensitivity, glm::vec3(0, 1, 0));
@@ -245,6 +251,8 @@ public:
 
         update_lens_uniform();
 
+        glUniform1i(glGetUniformLocation(shaderProgram, "diffMode"), diffMode ? 1 : 0);
+
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_3D, volumeTexture);
         glUniform1i(glGetUniformLocation(shaderProgram, "volumeTexture"), 0);
@@ -306,6 +314,20 @@ public:
         SliderFloat("Step Size", &stepSize, 0.0005f, 0.01f);
         End();
 
+        Begin("Clinical Presets");
+        if (Button("Bone (400/1800)")) { windowLevel = 400; windowWidth = 1800; }
+        SameLine();
+        if (Button("Lung (-600/1500)")) { windowLevel = -600; windowWidth = 1500; }
+
+        if (Button("Soft Tissue (40/400)")) { windowLevel = 40; windowWidth = 400; }
+        SameLine();
+        if (Button("Mediastinum (40/350)")) { windowLevel = 40; windowWidth = 350; }
+
+        Separator();
+        Checkbox("AI Difference Mode", &diffMode);
+        TextDisabled("Shows (Raw - AI) to visualize noise removal.");
+        End();
+
 		Begin("Lens Controls");
 		SliderFloat3("Lens Center", &lensCenter[0], 0.0f, 1.0f);
 		SliderFloat("Lens Radius", &lensRadius, 0.01f, 0.5f);
@@ -333,6 +355,8 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("render_ui", &RadEngine::render_ui)
         .def("update_transfer_function", &RadEngine::update_transfer_function)
         .def("upload_ai_volume", &RadEngine::upload_ai_volume)
+        .def("set_lens_pos", &RadEngine::set_lens_pos)
+        .def("set_diff_mode", &RadEngine::set_diff_mode)
         .def("want_capture_mouse", [](RadEngine& self) {
 		    return ImGui::GetIO().WantCaptureMouse;
         });

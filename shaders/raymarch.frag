@@ -18,6 +18,8 @@ uniform bool lensEnabled;
 
 uniform isampler3D volumeTextureAI;
 
+uniform bool diffMode;
+
 float pseudo_random(vec2 co) {
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
@@ -36,20 +38,24 @@ void main() {
         if (accumulatedOpacity >= 0.95) break;
         if (any(greaterThan(currentPos, vec3(1.0))) || any(lessThan(currentPos, vec3(0.0)))) break;
 
-        int rawHU = texture(volumeTexture, currentPos).r;
-        float hu = float(rawHU);
-
+        float hu = float(texture(volumeTexture, currentPos).r);
         float aiHU = float(texture(volumeTextureAI, currentPos).r);
 
-
         float dist = distance(currentPos, lensCenter);
-        float feather = 0.2 * lensRadius;
+        float feather = 0.05 * lensRadius; // Sharper edge feels more like a clinical tool
         float weight = 1.0 - smoothstep(lensRadius - feather, lensRadius + feather, dist);
 
-        float finalHU = mix(hu, aiHU, weight * float(lensEnabled));
+        float finalHU;
+        bool isInsideLens = (lensEnabled && dist < lensRadius);
 
-        if (lensEnabled && dist < lensRadius) {
-            hu += (600.0 * weight); 
+        if (isInsideLens) {
+            if (diffMode) {
+                finalHU = abs(hu - aiHU) * 5.0; 
+            } else {
+                finalHU = aiHU;
+            }
+        } else {
+            finalHU = hu;
         }
 
         float lowerBound = windowLevel - (windowWidth / 2.0);
@@ -57,17 +63,17 @@ void main() {
         normalizedIntensity = clamp(normalizedIntensity, 0.0, 1.0);
 
         vec4 tfSample = texture(transferFunction, normalizedIntensity);
-        
         float sampleOpacity = tfSample.a * tf_multiplier;
         vec3 sampleColor = tfSample.rgb;
 
-        if (lensEnabled && dist < lensRadius) {
-            sampleColor.rgb = mix(sampleColor.rgb, sampleColor.rgb + vec3(0.0, 0.2, 0.0), weight);
+        if (isInsideLens && diffMode) {
+            sampleColor = mix(sampleColor, vec3(0.2, 0.6, 1.0) * normalizedIntensity, 0.5);
         }
 
         if (lensEnabled) {
-            float ring = smoothstep(0.005, 0.0, abs(dist - lensRadius));
-            sampleColor.rgb += vec3(ring);
+            float ringWidth = 0.003;
+            float ring = smoothstep(ringWidth, 0.0, abs(dist - lensRadius));
+            sampleColor += vec3(ring);
         }
 
         if (sampleOpacity > 0.0) {
