@@ -136,10 +136,19 @@ def main():
 
 	engine.set_window_level(400, 40)
 
+	current_slice = volume.shape[0] // 2
+	depth = volume.shape[0]
+
 	while not glfw.window_should_close(window):
 		glfw.poll_events()
 		width, height = glfw.get_framebuffer_size(window)
 		
+		if glfw.get_key(window, glfw.KEY_RIGHT) == glfw.PRESS:
+			current_slice = min(current_slice + 1, depth - 1)
+			engine.set_current_slice(current_slice)
+		elif glfw.get_key(window, glfw.KEY_LEFT) == glfw.PRESS:
+			current_slice = max(current_slice - 1, 0)
+			engine.set_current_slice(current_slice)
 
 		if not engine.want_capture_mouse():
 			curr_x, curr_y = glfw.get_cursor_pos(window)
@@ -168,7 +177,7 @@ def main():
 		
 		engine.update_uniforms(width, height)
 		gl.glViewport(0, 0, width, height)
-		engine.render()
+		engine.render_viewports(width, height)
 		engine.render_ui()
 		glfw.swap_buffers(window)
 

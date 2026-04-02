@@ -46,6 +46,8 @@ private:
 
     bool diffMode = false;
 
+    int currentSlice = 0;
+
 public:
     RadEngine() {
         cout << "Engine Initialized." << endl;
@@ -133,6 +135,34 @@ public:
         diffMode = enabled;
     }
 
+    void set_current_slice(int s) {
+        currentSlice = s;
+    }
+
+    void render_viewports(int winW, int winH) {
+        float splitAspect = (float)(winW / 2) / (float)winH;
+        glViewport(0, 0, winW / 2, winH);
+
+        mat4 projection = perspective(radians(45.0f), splitAspect, 0.1f, 100.0f);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projection));
+
+        glUniform1i(glGetUniformLocation(shaderProgram, "is2DView"), 0);
+        render();
+
+        glViewport(winW / 2, 0, winW / 2, winH);
+        glUniform1i(glGetUniformLocation(shaderProgram, "is2DView"), 1);
+
+        mat4 identity = mat4(1.0f);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(identity));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(identity));
+
+        mat4 orthoProj = ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(orthoProj));
+
+        glUniform1f(glGetUniformLocation(shaderProgram, "sliceZ"), (float)currentSlice / (float)depth);
+        render();
+    }
+
     void update_lens_uniform() {
         glUseProgram(shaderProgram);
         glUniform3fv(glGetUniformLocation(shaderProgram, "lensCenter"), 1, value_ptr(lensCenter));
@@ -171,9 +201,9 @@ public:
 
     void upload_ai_volume(py::array_t<int16_t> numpy_volume) {
         py::buffer_info buf = numpy_volume.request();
-        int depth = (int)buf.shape[0];
-        int height = (int)buf.shape[1];
-        int width = (int)buf.shape[2];
+        this->depth = (int)buf.shape[0];
+        this->height = (int)buf.shape[1];
+        this->width = (int)buf.shape[2];
 
         if (volumeTextureAI == 0)
             glGenTextures(1, &volumeTextureAI);
@@ -186,8 +216,8 @@ public:
         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-        glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I, width, height, depth, 0,
-            GL_RED_INTEGER, GL_SHORT, buf.ptr);
+        glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,
+            GL_RED, GL_SHORT, buf.ptr);
     }
 
     void upload_volume(py::array_t<int16_t> numpy_volume) {
@@ -197,9 +227,9 @@ public:
             throw runtime_error("Volume be a 3D array (Z, Y, X");
         }
 
-        int depth = (int)buf.shape[0];
-        int height = (int)buf.shape[1];
-        int width = (int)buf.shape[2];
+        this->depth = (int)buf.shape[0];
+        this->height = (int)buf.shape[1];
+        this->width = (int)buf.shape[2];
 
         if (volumeTexture == 0) {
             glGenTextures(1, &volumeTexture);
@@ -334,6 +364,19 @@ public:
 		Checkbox("Enable Lens", &lensEnabled);
 		End();
 
+        Begin("Slice Viewer");
+        if (SliderInt("Current Slice", &currentSlice, 0, depth - 1)) {
+        }
+        Text("Total Slices: %d", depth);
+
+        Separator();
+
+        Text("Intensity Range:");
+        float low = windowLevel - (windowWidth / 2.0f);
+        float high = windowLevel + (windowWidth / 2.0f);
+        Text("%.0f HU <---> %.0f HU", low, high);
+        End();
+
         Render();
         ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());
     }
@@ -357,6 +400,8 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("upload_ai_volume", &RadEngine::upload_ai_volume)
         .def("set_lens_pos", &RadEngine::set_lens_pos)
         .def("set_diff_mode", &RadEngine::set_diff_mode)
+		.def("set_current_slice", &RadEngine::set_current_slice)
+		.def("render_viewports", &RadEngine::render_viewports)
         .def("want_capture_mouse", [](RadEngine& self) {
 		    return ImGui::GetIO().WantCaptureMouse;
         });
