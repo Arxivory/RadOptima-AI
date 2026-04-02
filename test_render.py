@@ -29,6 +29,21 @@ import radoptima_core
 last_x, last_y = 256, 256
 first_mouse = True
 
+def convert_to_explicit_vr(input_dir, output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    print(f"Converting DICOMs to Explicit VR for AI compatibility...")
+    for f in os.listdir(input_dir):
+        if f.endswith('.DCM') or f.endswith('.dcm'):
+            ds = pydicom.dcmread(os.path.join(input_dir, f))
+            
+            ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+            ds.is_implicit_VR = False
+            ds.is_little_endian = True
+            
+            ds.save_as(os.path.join(output_dir, f))
+
 def get_ai_enhanced_volume(original_dicom_path):
     temp_ai_dir = "./data/temp_ai_out"
     if os.path.exists(temp_ai_dir):
@@ -49,6 +64,8 @@ def get_ai_enhanced_volume(original_dicom_path):
 def has_ai_output(ai_data_path):
 	if Path(ai_data_path).exists() and any(f.endswith('.DCM') or f.endswith('.dcm') for f in os.listdir(ai_data_path)):
 		return True
+
+	return False
 
 def main():
 	global first_mouse, last_x, last_y
@@ -87,13 +104,17 @@ def main():
 	engine.setup_cube()
 
 	data_path = "data/samples/chest"
+	explicit_vr_path = "data/explicit_vr"
 	ai_data_path = "data/temp_ai_out"
 
 	volume, volume_scale = load_dicom_volume(data_path)
 
 	if not has_ai_output(ai_data_path):
+		print("Converting...")
+		convert_to_explicit_vr(data_path, explicit_vr_path)
+
 		print("No AI output found. Running AI enhancement...")
-		get_ai_enhanced_volume(data_path)
+		get_ai_enhanced_volume(explicit_vr_path)
 
 	print("AI output found. Loading AI-enhanced volume...")
 
