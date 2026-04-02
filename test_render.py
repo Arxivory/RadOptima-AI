@@ -6,6 +6,13 @@ import ctypes
 from ctypes import wintypes
 from data.dicom_loader import load_dicom_volume
 from scipy.ndimage import median_filter
+import shutil
+from ldctbench.hub import Methods
+from ldctbench.hub.utils import denoise_dicom
+import torch
+import pydicom
+from pydicom.uid import ExplicitVRLittleEndian
+from pathlib import Path
 
 build_path = os.path.join(os.getcwd(), "out", "build", "x64-Debug", "cpp_core")
 
@@ -21,6 +28,27 @@ import radoptima_core
 
 last_x, last_y = 256, 256
 first_mouse = True
+
+def get_ai_enhanced_volume(original_dicom_path):
+    temp_ai_dir = "./data/temp_ai_out"
+    if os.path.exists(temp_ai_dir):
+        shutil.rmtree(temp_ai_dir) 
+    os.makedirs(temp_ai_dir)
+
+    print("AI is reconstructing the volume via RED-CNN...")
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    denoise_dicom(
+        dicom_path=original_dicom_path,
+        savedir=temp_ai_dir,
+        method=Methods.REDCNN,
+        device=device
+    )
+
+def has_ai_output(ai_data_path):
+	if Path(ai_data_path).exists() and any(f.endswith('.DCM') or f.endswith('.dcm') for f in os.listdir(ai_data_path)):
+		return True
 
 def main():
 	global first_mouse, last_x, last_y
@@ -59,10 +87,17 @@ def main():
 	engine.setup_cube()
 
 	data_path = "data/samples/chest"
+	ai_data_path = "data/temp_ai_out"
+
 	volume, volume_scale = load_dicom_volume(data_path)
 
-	print("Generating Mock AI Data (Denoising)...")
-	ai_volume = median_filter(volume, size=3)
+	if not has_ai_output(ai_data_path):
+		print("No AI output found. Running AI enhancement...")
+		get_ai_enhanced_volume(data_path)
+
+	print("AI output found. Loading AI-enhanced volume...")
+
+	ai_volume, ai_volume_scale = load_dicom_volume(ai_data_path)
 
 	engine.upload_volume(volume)
 	engine.upload_ai_volume(ai_volume)
