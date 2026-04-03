@@ -91,8 +91,8 @@ void main() {
         norm = pow(norm, 1.1); 
 
         vec3 clinicalColor = vec3(norm);
-        clinicalColor.b *= 1.08; // Subtle blue for medical aesthetic
-        clinicalColor.r *= 0.98; // Soften reds
+        clinicalColor.b *= 1.08;
+        clinicalColor.r *= 0.98;
 
         FragColor = vec4(clinicalColor, 1.0);
     } 
@@ -100,23 +100,44 @@ void main() {
     else {
         vec3 objEyePos = (invModel * vec4(eyePos, 1.0f)).xyz;
         vec3 rayDir = normalize(TexCoords - objEyePos); 
-        
+    
+        vec3 L = lensCenter - objEyePos;
+        float t = dot(L, rayDir);
+        vec3 closestPointOnRay = objEyePos + rayDir * t;
+        float distToLensAxis = distance(closestPointOnRay, lensCenter);
+    
+        bool rayHitsLensCircle = (lensEnabled && distToLensAxis < lensRadius);
+
         float jitter = pseudo_random(gl_FragCoord.xy) * stepSize;
         vec3 currentPos = TexCoords + rayDir * jitter;
 
         vec4 accumulatedColor = vec4(0.0);
         float accumulatedOpacity = 0.0;
 
+        float sharpAmount = 0.8;
+        vec3 texelSize = 1.0 / vec3(textureSize(volumeTexture, 0));
+
         for (int i = 0; i < 512; i++) {
             if (accumulatedOpacity >= 0.95) break;
             if (any(greaterThan(currentPos, vec3(1.0))) || any(lessThan(currentPos, vec3(0.0)))) break;
 
             float hu = float(texture(volumeTexture, currentPos).r);
+
+            float neighbors = 0.0;
+            neighbors += float(texture(volumeTexture, currentPos + vec3(texelSize.x, 0, 0)).r);
+            neighbors += float(texture(volumeTexture, currentPos - vec3(texelSize.x, 0, 0)).r);
+            neighbors += float(texture(volumeTexture, currentPos + vec3(0, texelSize.y, 0)).r);
+            neighbors += float(texture(volumeTexture, currentPos - vec3(0, texelSize.y, 0)).r);
+            neighbors += float(texture(volumeTexture, currentPos + vec3(0, 0, texelSize.z)).r);
+            neighbors += float(texture(volumeTexture, currentPos - vec3(0, 0, texelSize.z)).r);
+
+            float edge = hu - (neighbors / 6.0);
+            float diagnosticHU = hu + (edge * sharpAmount);
+
             float aiHU = float(texture(volumeTextureAI, currentPos).r);
 
-            float dist = distance(currentPos, lensCenter);
-            float finalHU = (lensEnabled && dist < lensRadius) ? 
-                            (diffMode ? abs(hu - aiHU) * 5.0 : aiHU) : hu;
+            float finalHU = rayHitsLensCircle ? 
+                            (diffMode ? abs(diagnosticHU - aiHU) * 5.0 : aiHU) : diagnosticHU;
 
             float lowerBound = windowLevel - (windowWidth / 2.0);
             float normalizedIntensity = clamp((finalHU - lowerBound) / windowWidth, 0.0, 1.0);
@@ -125,9 +146,9 @@ void main() {
             float sampleOpacity = tfSample.a * tf_multiplier;
             vec3 sampleColor = tfSample.rgb;
 
-            if (lensEnabled) {
-                float ring = smoothstep(0.003, 0.0, abs(dist - lensRadius));
-                sampleColor += vec3(ring * 0.5);
+            if (lensEnabled && i < 10) {
+                 float ring = smoothstep(0.005, 0.0, abs(distToLensAxis - lensRadius));
+                 sampleColor += vec3(ring * 0.8);
             }
 
             if (sampleOpacity > 0.01) {
