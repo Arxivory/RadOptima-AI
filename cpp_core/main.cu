@@ -12,6 +12,7 @@
 #include "imgui_impl_opengl3.h"
 #include <cstdint>
 #include "imgui_impl_win32.h"
+#include <vector>
 
 using namespace std;
 using namespace glm;
@@ -29,6 +30,18 @@ LRESULT CALLBACK MyWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
     return CallWindowProc(g_GlfwWndProc, hWnd, uMsg, wParam, lParam);
 }
+
+struct ProbeData {
+    int16_t rawHU;
+    int16_t aiHU;
+    float x_norm, y_norm;
+    bool isActive;
+};
+
+struct ROIResult {
+    float mean;
+    float stdDev;
+};
 
 class RadEngine {
 private:
@@ -49,6 +62,16 @@ private:
     int currentSlice = 0;
     int compareMode2D = 0;
     float sliderX = 0.5;
+
+    std::vector<int16_t> cpuVolumeRaw;
+    std::vector<int16_t> cpuVolumeAI;
+    ProbeData currentProbe;
+
+    ROIResult cachedRawStats = { 0,0 };
+    ROIResult cachedAIStats = { 0,0 };
+    vec3 lastLensPos = vec3(-1.0f);
+    float lastLensRadius = -1.0f;
+    int lastSlice = -1;
 
 public:
     RadEngine() {
@@ -207,6 +230,9 @@ public:
         this->height = (int)buf.shape[1];
         this->width = (int)buf.shape[2];
 
+        int16_t* ptr = static_cast<int16_t*>(buf.ptr);
+        cpuVolumeAI.assign(ptr, ptr + (depth * height * width));
+
         if (volumeTextureAI == 0)
             glGenTextures(1, &volumeTextureAI);
 
@@ -232,6 +258,9 @@ public:
         this->depth = (int)buf.shape[0];
         this->height = (int)buf.shape[1];
         this->width = (int)buf.shape[2];
+
+        int16_t* ptr = static_cast<int16_t*>(buf.ptr);
+        cpuVolumeRaw.assign(ptr, ptr + (depth * height * width));
 
         if (volumeTexture == 0) {
             glGenTextures(1, &volumeTexture);
@@ -329,13 +358,158 @@ public:
         cout << "Volume Scale Applied: " << sx << ", " << sy << ", " << sz << endl;
     }
 
+    void update_probe(int winW, int winH) {
+        ImGuiIO& io = ImGui::GetIO();
+        currentProbe.isActive = false;
+
+        float xMin = winW / 2.0f;
+        float xMax = (float)winW;
+
+        if (io.MousePos.x >= xMin && io.MousePos.x <= xMax &&
+            io.MousePos.y >= 0 && io.MousePos.y <= winH) {
+
+            float u = (io.MousePos.x - xMin) / (winW / 2.0f);
+            float v = io.MousePos.y / (float)winH;
+
+            int vx = glm::clamp((int)(u * width), 0, width - 1);
+            int vy = glm::clamp((int)(v * height), 0, height - 1);
+            int vz = currentSlice;
+
+            size_t idx = (size_t)vz * (width * height) + (vy * width) + vx;
+
+            if (idx < cpuVolumeRaw.size()) {
+                currentProbe.rawHU = cpuVolumeRaw[idx];
+                currentProbe.aiHU = !cpuVolumeAI.empty() ? cpuVolumeAI[idx] : 0;
+                currentProbe.x_norm = u;
+                currentProbe.y_norm = v;
+                currentProbe.isActive = true;
+            }
+        }
+    }
+
+    void DrawHistogram() {
+        if (cpuVolumeRaw.empty()) return;
+
+        static float histData[256];
+        std::fill(std::begin(histData), std::end(histData), 0.0f);
+
+        size_t sliceSize = width * height;
+        size_t startIdx = (size_t)currentSlice * sliceSize;
+
+        float minHU = windowLevel - (windowWidth / 2.0f);
+        float maxHU = windowLevel + (windowWidth / 2.0f);
+
+        for (size_t i = 0; i < sliceSize; i++) {
+            int16_t val = cpuVolumeRaw[startIdx + i];
+            int bin = (int)(((float)val - minHU) / windowWidth * 255.0f);
+            if (bin >= 0 && bin < 256) histData[bin]++;
+        }
+
+        ImGui::Begin("Live Analytics");
+        ImGui::Text("Slice Intensity Distribution");
+        ImGui::PlotHistogram("##HUHist", histData, 256, 0, NULL, 0.0f, sliceSize * 0.05f, ImVec2(0, 80));
+        ImGui::TextDisabled("Air (-1000) <---> Bone (+1000)");
+        ImGui::End();
+    }
+
+    ROIResult calculateROI(const std::vector<int16_t>& buffer) {
+        if (buffer.empty()) return { 0, 0 };
+
+        float sum = 0, sq_sum = 0;
+        int count = 0;
+
+        int minX = glm::clamp((int)((lensCenter.x - lensRadius) * width), 0, width - 1);
+        int maxX = glm::clamp((int)((lensCenter.x + lensRadius) * width), 0, width - 1);
+        int minY = glm::clamp((int)((1.0f - (lensCenter.y + lensRadius)) * height), 0, height - 1);
+        int maxY = glm::clamp((int)((1.0f - (lensCenter.y - lensRadius)) * height), 0, height - 1);
+
+        float r2 = lensRadius * lensRadius; 
+
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                float u = (float)x / width;
+                float v = (float)y / height;
+
+                float dx = u - lensCenter.x;
+                float dy = (1.0f - v) - lensCenter.y;
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq < r2) {
+                    int16_t val = buffer[(size_t)currentSlice * width * height + y * width + x];
+                    sum += val;
+                    sq_sum += val * val;
+                    count++;
+                }
+            }
+        }
+
+        if (count == 0) return { 0, 0 };
+        float mean = sum / count;
+        float variance = (sq_sum / count) - (mean * mean);
+        return { mean, sqrt(max(0.0f, variance)) };
+    }
+
+    void DrawClinicalAnalytics() {
+        Begin("Clinical Analytics");
+
+        if (lensEnabled) {
+            bool isDirty = (lensCenter != lastLensPos ||
+                lensRadius != lastLensRadius ||
+                currentSlice != lastSlice);
+
+            if (isDirty) {
+                cachedRawStats = calculateROI(cpuVolumeRaw);
+                cachedAIStats = !cpuVolumeAI.empty() ? calculateROI(cpuVolumeAI) : ROIResult{ 0,0 };
+
+                lastLensPos = lensCenter;
+                lastLensRadius = lensRadius;
+                lastSlice = currentSlice;
+            }
+
+            if (BeginTable("StatsTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+                TableSetupColumn("Metric");
+                TableSetupColumn("Raw");
+                TableSetupColumn("AI Denoised");
+                TableHeadersRow();
+
+                TableNextRow();
+                TableSetColumnIndex(0); Text("Mean Intensity");
+                TableSetColumnIndex(1); Text("%.1f HU", cachedRawStats.mean);
+                TableSetColumnIndex(2); Text("%.1f HU", cachedAIStats.mean);
+
+                TableNextRow();
+                TableSetColumnIndex(0); Text("Noise (StdDev)");
+                TableSetColumnIndex(1); Text("%.2f", cachedRawStats.stdDev);
+                TableSetColumnIndex(2); TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%.2f", cachedAIStats.stdDev);
+
+                EndTable();
+            }
+
+            if (cachedRawStats.stdDev > 0.001f) {
+                float reduction = (1.0f - (cachedAIStats.stdDev / cachedRawStats.stdDev)) * 100.0f;
+                Separator();
+                Text("Noise Reduction:"); SameLine();
+                TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "%.1f%%", reduction);
+
+                PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
+                ProgressBar(reduction / 100.0f, ImVec2(-1, 15), "");
+                PopStyleColor();
+            }
+        }
+        else {
+            TextDisabled("Enable Lens to see ROI Statistics.");
+        }
+
+        End();
+    }
+
     void render() {
         glUseProgram(shaderProgram);
         glBindVertexArray(cubeVAO);
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     }
 
-    void render_ui() {
+    void render_ui(int winW, int winH) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplWin32_NewFrame();
         NewFrame();
@@ -399,6 +573,32 @@ public:
         }
 
         End();
+
+        update_probe(winW, winH);
+
+        if (currentProbe.isActive && !ImGui::GetIO().WantCaptureMouse) {
+            ImGui::SetNextWindowBgAlpha(0.7f);
+            ImGui::BeginTooltip();
+
+            ImGui::TextDisabled("Coordinate: %.2f, %.2f (Slice %d)",
+                currentProbe.x_norm, currentProbe.y_norm, currentSlice);
+            ImGui::Separator();
+
+            ImGui::Text("Raw: %d HU", currentProbe.rawHU);
+
+            if (!cpuVolumeAI.empty()) {
+                ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "AI:  %d HU", currentProbe.aiHU);
+
+                float diff = (float)abs(currentProbe.rawHU - currentProbe.aiHU);
+                ImGui::TextDisabled("Noise Delta: %.1f", diff);
+            }
+
+            ImGui::EndTooltip();
+        }
+
+		DrawHistogram();
+
+        DrawClinicalAnalytics();
 
         Render();
         ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());

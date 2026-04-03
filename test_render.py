@@ -178,7 +178,7 @@ def main():
 		engine.update_uniforms(width, height)
 		gl.glViewport(0, 0, width, height)
 		engine.render_viewports(width, height)
-		engine.render_ui()
+		engine.render_ui(width, height)
 		glfw.swap_buffers(window)
 
 	glfw.terminate()
