@@ -47,6 +47,8 @@ private:
     bool diffMode = false;
 
     int currentSlice = 0;
+    int compareMode2D = 0;
+    float sliderX = 0.5;
 
 public:
     RadEngine() {
@@ -282,6 +284,8 @@ public:
         update_lens_uniform();
 
         glUniform1i(glGetUniformLocation(shaderProgram, "diffMode"), diffMode ? 1 : 0);
+		glUniform1i(glGetUniformLocation(shaderProgram, "compareMode2D"), compareMode2D);
+        glUniform1f(glGetUniformLocation(shaderProgram, "sliderX"), sliderX);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_3D, volumeTexture);
@@ -375,6 +379,25 @@ public:
         float low = windowLevel - (windowWidth / 2.0f);
         float high = windowLevel + (windowWidth / 2.0f);
         Text("%.0f HU <---> %.0f HU", low, high);
+        End();
+
+        Begin("Slice Comparison");
+
+        if (RadioButton("Lens", compareMode2D == 1))
+            compareMode2D = 1;
+
+        SameLine();
+        if (RadioButton("Slider", compareMode2D == 2))
+            compareMode2D = 2;
+
+        SameLine();
+        if (RadioButton("Raw", compareMode2D == 0))
+            compareMode2D = 0;
+
+        if (compareMode2D == 2) {
+            SliderFloat("Slice Split", &sliderX, 0.0f, 1.0f);
+        }
+
         End();
 
         Render();

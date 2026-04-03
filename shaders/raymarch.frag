@@ -21,6 +21,8 @@ uniform bool lensEnabled;
 uniform bool diffMode;
 uniform bool is2DView;
 uniform float sliceZ;
+uniform int compareMode2D;
+uniform float sliderX;
 
 // --- MATH UTILITIES ---
 float pseudo_random(vec2 co) {
@@ -79,11 +81,21 @@ void main() {
         bool isInsideLens = (lensEnabled && dist < lensRadius);
 
         float finalHU;
-        if (isInsideLens) {
+
+        if (compareMode2D == 2) { // Slider mode
+            finalHU = (TexCoords.x < sliderX) ? hu : aiHU;
+        } else if (compareMode2D == 1) { // Lens mode
+            float dist = distance(samplePos, lensCenter);
+            finalHU = (lensEnabled && dist < lensRadius) ? aiHU : diagnosticHU;
+        } else { // Raw mode
+            finalHU = diagnosticHU;
+        }
+
+        /* if (isInsideLens) {
             finalHU = diffMode ? abs(diagnosticHU - aiHU) * 8.0 : aiHU;
         } else {
             finalHU = diagnosticHU;
-        }
+        } */
 
         float lowerBound = windowLevel - (windowWidth / 2.0);
         float norm = clamp((finalHU - lowerBound) / windowWidth, 0.0, 1.0);
