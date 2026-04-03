@@ -156,7 +156,7 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(identity));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(identity));
 
-        mat4 orthoProj = ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
+        mat4 orthoProj = ortho(0.0f, 1.0f, 1.0f, 0.0f, -1.0f, 1.0f);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(orthoProj));
 
         glUniform1f(glGetUniformLocation(shaderProgram, "sliceZ"), (float)currentSlice / (float)depth);
