@@ -145,4 +145,4 @@ If you use or reference this system, please cite:
 ## Status
 
  **Actively in Development**  
-Core systems (rendering, AI pipeline, interop) are being built and optimized.
+Core systems (rendering, AI pipeline, interop) are being built and optimized. File management is also in progress.
