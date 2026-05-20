@@ -5,7 +5,6 @@
 **RadOptima AI** is a real-time medical imaging system designed to address one of the most critical challenges in modern radiology:  
 > **How can we achieve high-quality diagnostic imaging while minimizing radiation exposure and preserving clinical trust?**
 
-This project bridges **computer graphics**, **GPU systems engineering**, and **deep learning** to create an **interactive, trust-preserving CT visualization platform**.
 
 ---
 
@@ -124,7 +123,7 @@ This enables:
 
 The denoising model used in this project is based on prior research in medical imaging.
 
-If you use or reference this system, please cite:
+If you use or reference this system, please cite their paper:
 
 > E. Eulig, B. Ommer, and M. Kachelrieß,  
 > *“Benchmarking deep learning-based low-dose CT image denoising algorithms,”*  
