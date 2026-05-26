@@ -13,12 +13,14 @@
 #include <cstdint>
 #include "imgui_impl_win32.h"
 #include <vector>
+#include <string>
 
 using namespace std;
 using namespace glm;
 using namespace ImGui;
 
 namespace py = pybind11;
+using namespace py::literals;
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -66,6 +68,12 @@ private:
     std::vector<int16_t> cpuVolumeRaw;
     std::vector<int16_t> cpuVolumeAI;
     ProbeData currentProbe;
+
+    std::vector<int16_t> pendingRawVolume;
+    std::vector<int16_t> pendingAIVolume;
+    int pendingDepth = 0, pendingHeight = 0, pendingWidth = 0;
+    bool hasPendingRaw = false;
+    bool hasPendingAI = false;
 
     ROIResult cachedRawStats = { 0,0 };
     ROIResult cachedAIStats = { 0,0 };
@@ -226,12 +234,14 @@ public:
 
     void upload_ai_volume(py::array_t<int16_t> numpy_volume) {
         py::buffer_info buf = numpy_volume.request();
-        this->depth = (int)buf.shape[0];
-        this->height = (int)buf.shape[1];
-        this->width = (int)buf.shape[2];
 
         int16_t* ptr = static_cast<int16_t*>(buf.ptr);
-        cpuVolumeAI.assign(ptr, ptr + (depth * height * width));
+        pendingAIVolume.assign(ptr, ptr + (
+            (int)buf.shape[0] * (int)buf.shape[1] * (int)buf.shape[2]));
+        hasPendingAI = true;
+
+        cpuVolumeAI.assign(ptr, ptr + (
+            (int)buf.shape[0] * (int)buf.shape[1] * (int)buf.shape[2]));
 
         if (volumeTextureAI == 0)
             glGenTextures(1, &volumeTextureAI);
@@ -255,12 +265,19 @@ public:
             throw runtime_error("Volume be a 3D array (Z, Y, X");
         }
 
+        pendingDepth = (int)buf.shape[0];
+        pendingHeight = (int)buf.shape[1];
+        pendingWidth = (int)buf.shape[2];
+
+        int16_t* ptr = static_cast<int16_t*>(buf.ptr);
+        pendingRawVolume.assign(ptr, ptr + (pendingDepth * pendingHeight * pendingWidth));
+        hasPendingRaw = true;
+
         this->depth = (int)buf.shape[0];
         this->height = (int)buf.shape[1];
         this->width = (int)buf.shape[2];
 
-        int16_t* ptr = static_cast<int16_t*>(buf.ptr);
-        cpuVolumeRaw.assign(ptr, ptr + (depth * height * width));
+        cpuVolumeRaw.assign(ptr, ptr + (pendingDepth * pendingHeight * pendingWidth));
 
         if (volumeTexture == 0) {
             glGenTextures(1, &volumeTexture);
@@ -282,6 +299,54 @@ public:
 
         glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I, width, height, depth, 0,
             GL_RED_INTEGER, GL_SHORT, buf.ptr);
+    }
+
+    void flush_pending_uploads() {
+        if (hasPendingRaw) {
+            if (volumeTexture == 0)
+                glGenTextures(1, &volumeTexture);
+
+            glBindTexture(GL_TEXTURE_3D, volumeTexture);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+
+            float borderColor[] = { -1024.0f, 0.0f, 0.0f, 0.0f };
+            glTexParameterfv(GL_TEXTURE_3D, GL_TEXTURE_BORDER_COLOR, borderColor);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+            glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I,
+                pendingWidth, pendingHeight, pendingDepth, 0,
+                GL_RED_INTEGER, GL_SHORT, pendingRawVolume.data());
+
+            pendingRawVolume.clear();
+            pendingRawVolume.shrink_to_fit();
+            hasPendingRaw = false;
+            cout << "[GL] Raw volume uploaded to GPU." << endl;
+        }
+
+        if (hasPendingAI) {
+            if (volumeTextureAI == 0)
+                glGenTextures(1, &volumeTextureAI);
+
+            glBindTexture(GL_TEXTURE_3D, volumeTextureAI);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+            glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I,
+                width, height, depth, 0,
+                GL_RED_INTEGER, GL_SHORT, pendingAIVolume.data());
+
+            pendingAIVolume.clear();
+            pendingAIVolume.shrink_to_fit();
+            hasPendingAI = false;
+            cout << "[GL] AI volume uploaded to GPU." << endl;
+        }
     }
 
     void update_transfer_function(py::array_t<float> lut) {
@@ -311,6 +376,9 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
 
         update_lens_uniform();
+
+        glUniform1i(glGetUniformLocation(shaderProgram, "aiReady"),
+            cpuVolumeAI.empty() ? 0 : 1);
 
         glUniform1i(glGetUniformLocation(shaderProgram, "diffMode"), diffMode ? 1 : 0);
 		glUniform1i(glGetUniformLocation(shaderProgram, "compareMode2D"), compareMode2D);
@@ -503,6 +571,29 @@ public:
         End();
     }
 
+    void reset_engine() {
+        cpuVolumeRaw.clear();
+        cpuVolumeRaw.shrink_to_fit();
+        cpuVolumeAI.clear();
+        cpuVolumeAI.shrink_to_fit();
+
+        pendingRawVolume.clear(); pendingRawVolume.shrink_to_fit();
+        pendingAIVolume.clear();  pendingAIVolume.shrink_to_fit();
+        hasPendingRaw = false;
+        hasPendingAI = false;
+
+        currentSlice = 0;
+        width = 0; height = 0; depth = 0;
+
+        lastLensPos = vec3(-1.0f);
+        lastLensRadius = -1.0f;
+        lastSlice = -1;
+        cachedRawStats = { 0.0f, 0.0f };
+        cachedAIStats = { 0.0f, 0.0f };
+
+        std::cout << "[C++] Engine storage layers reset successfully." << std::endl;
+    }
+
     void render() {
         glUseProgram(shaderProgram);
         glBindVertexArray(cubeVAO);
@@ -513,6 +604,49 @@ public:
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplWin32_NewFrame();
         NewFrame();
+
+        Begin("Data Pipeline Manager");
+
+        auto app_module = py::module_::import("__main__");
+        auto app_state = app_module.attr("app_state");
+        int current_state = app_state.attr("current_state").cast<int>();
+        std::string status = app_state.attr("status_message").cast<std::string>();
+
+        Text("System Status:"); SameLine();
+        if (current_state == 0) TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "EMPTY");
+        else if (current_state == 1) TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "LOADING RAW...");
+        else if (current_state == 2) TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "RAW READY");
+        else if (current_state == 3) TextColored(ImVec4(0.2f, 0.6f, 1.0f, 1.0f), "AI PROCESSING...");
+        else if (current_state == 4) TextColored(ImVec4(0.0f, 1.0f, 1.0f, 1.0f), "FULLY OPTIMIZED");
+
+        TextWrapped("Message: %s", status.c_str());
+        Separator();
+
+        if (current_state == 0 || current_state == 4) {
+            if (Button("Import DICOM Directory...")) {
+                py::object folder = app_module.attr("open_folder_dialog")();
+                std::string path = folder.cast<std::string>();
+                if (!path.empty()) {
+                    app_state.attr("selected_path") = path;
+                    py::object thread = py::module_::import("threading").attr("Thread");
+                    py::object t = thread("target"_a = app_module.attr("bg_load_raw"), "args"_a = py::make_tuple(path, py::cast(this)));
+                    t.attr("start")();
+                }
+            }
+        }
+        else {
+            BeginDisabled();
+            Button("Import DICOM Directory...##Disabled");
+            EndDisabled();
+        }
+
+        End();
+
+        if (current_state < 2) {
+            Render();
+            ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());
+            return;
+		}
 
         Begin("RadOptima Controls");
         SliderFloat("Window Width", &windowWidth, 1.0f, 2000.0f);
@@ -544,6 +678,7 @@ public:
 
         Begin("Slice Viewer");
         if (SliderInt("Current Slice", &currentSlice, 0, depth - 1)) {
+            app_state.attr("current_slice") = currentSlice;
         }
         Text("Total Slices: %d", depth);
 
@@ -555,26 +690,30 @@ public:
         Text("%.0f HU <---> %.0f HU", low, high);
         End();
 
-        Begin("Slice Comparison");
+        if (current_state == 4) {
 
-        if (RadioButton("Lens", compareMode2D == 1))
-            compareMode2D = 1;
+            Begin("Slice Comparison");
 
-        SameLine();
-        if (RadioButton("Slider", compareMode2D == 2))
-            compareMode2D = 2;
+            if (RadioButton("Lens", compareMode2D == 1))
+                compareMode2D = 1;
 
-        SameLine();
-        if (RadioButton("Raw", compareMode2D == 0))
-            compareMode2D = 0;
+            SameLine();
+            if (RadioButton("Slider", compareMode2D == 2))
+                compareMode2D = 2;
 
-        if (compareMode2D == 2) {
-            SliderFloat("Slice Split", &sliderX, 0.0f, 1.0f);
+            SameLine();
+            if (RadioButton("Raw", compareMode2D == 0))
+                compareMode2D = 0;
+
+            if (compareMode2D == 2) {
+                SliderFloat("Slice Split", &sliderX, 0.0f, 1.0f);
+            }
+
+            End();
+
+            update_probe(winW, winH);
+
         }
-
-        End();
-
-        update_probe(winW, winH);
 
         if (currentProbe.isActive && !ImGui::GetIO().WantCaptureMouse) {
             ImGui::SetNextWindowBgAlpha(0.7f);
@@ -625,6 +764,8 @@ PYBIND11_MODULE(radoptima_core, m) {
         .def("set_diff_mode", &RadEngine::set_diff_mode)
 		.def("set_current_slice", &RadEngine::set_current_slice)
 		.def("render_viewports", &RadEngine::render_viewports)
+        .def("flush_pending_uploads", &RadEngine::flush_pending_uploads)
+        .def("reset_engine", &RadEngine::reset_engine)
         .def("want_capture_mouse", [](RadEngine& self) {
 		    return ImGui::GetIO().WantCaptureMouse;
         });

@@ -17,6 +17,7 @@ uniform vec3 eyePos;
 uniform vec3 lensCenter;
 uniform float lensRadius;
 uniform bool lensEnabled;
+uniform bool aiReady;
 
 uniform bool diffMode;
 uniform bool is2DView;
@@ -76,18 +77,17 @@ void main() {
         float sharpAmount = 0.6; // Adjust for "Film" vs "Smooth" look
         float diagnosticHU = hu + (laplacian * sharpAmount);
 
-        float aiHU = sampleBicubic(volumeTextureAI, samplePos);
+        float aiHU = aiReady ? sampleBicubic(volumeTextureAI, samplePos) : hu;
         float dist = distance(samplePos, lensCenter);
         bool isInsideLens = (lensEnabled && dist < lensRadius);
 
         float finalHU;
 
-        if (compareMode2D == 2) { // Slider mode
+        if (compareMode2D == 2 && aiReady) {
             finalHU = (TexCoords.x < sliderX) ? hu : aiHU;
-        } else if (compareMode2D == 1) { // Lens mode
-            float dist = distance(samplePos, lensCenter);
+        } else if (compareMode2D == 1 && aiReady) {
             finalHU = (lensEnabled && dist < lensRadius) ? aiHU : diagnosticHU;
-        } else { // Raw mode
+        } else {
             finalHU = diagnosticHU;
         }
 
@@ -146,10 +146,10 @@ void main() {
             float edge = hu - (neighbors / 6.0);
             float diagnosticHU = hu + (edge * sharpAmount);
 
-            float aiHU = float(texture(volumeTextureAI, currentPos).r);
+            float aiHU = aiReady ? float(texture(volumeTextureAI, currentPos).r) : diagnosticHU;
 
-            float finalHU = rayHitsLensCircle ? 
-                            (diffMode ? abs(diagnosticHU - aiHU) * 5.0 : aiHU) : diagnosticHU;
+            float finalHU = (aiReady && rayHitsLensCircle) ?
+                (diffMode ? abs(diagnosticHU - aiHU) * 5.0 : aiHU) : diagnosticHU;
 
             float lowerBound = windowLevel - (windowWidth / 2.0);
             float normalizedIntensity = clamp((finalHU - lowerBound) / windowWidth, 0.0, 1.0);
