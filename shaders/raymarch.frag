@@ -57,7 +57,23 @@ float sampleBicubic(isampler3D tex, vec3 uvw) {
             weightSum += w;
         }
     }
-    return texelSum / weightSum;
+    return (weightSum > 0.0001) ? texelSum / weightSum : float(texture(tex, uvw).r);
+}
+
+vec3 clinicalColormap(float t) {
+    vec3 c0 = vec3(0.0,    0.0,    0.0);
+    vec3 c1 = vec3(0.08,   0.10,   0.15);
+    vec3 c2 = vec3(0.30,   0.38,   0.46);
+    vec3 c3 = vec3(0.68,   0.74,   0.80);
+    vec3 c4 = vec3(0.88,   0.92,   0.95);
+    vec3 c5 = vec3(1.0,    1.0,    1.0);
+
+    t = clamp(t, 0.0, 1.0);
+    if (t < 0.2)  return mix(c0, c1, t / 0.2);
+    if (t < 0.45) return mix(c1, c2, (t - 0.2)  / 0.25);
+    if (t < 0.65) return mix(c2, c3, (t - 0.45) / 0.20);
+    if (t < 0.82) return mix(c3, c4, (t - 0.65) / 0.17);
+                  return mix(c4, c5, (t - 0.82) / 0.18);
 }
 
 void main() {
@@ -74,7 +90,7 @@ void main() {
         laplacian -= sampleBicubic(volumeTexture, samplePos + vec3(0, texelSize.y, 0));
         laplacian -= sampleBicubic(volumeTexture, samplePos - vec3(0, texelSize.y, 0));
 
-        float sharpAmount = 0.6; // Adjust for "Film" vs "Smooth" look
+        float sharpAmount = 0.15;
         float diagnosticHU = hu + (laplacian * sharpAmount);
 
         float aiHU = aiReady ? sampleBicubic(volumeTextureAI, samplePos) : hu;
@@ -100,13 +116,13 @@ void main() {
         float lowerBound = windowLevel - (windowWidth / 2.0);
         float norm = clamp((finalHU - lowerBound) / windowWidth, 0.0, 1.0);
         
-        norm = pow(norm, 1.1); 
+        float contrast = 5.5;
+        norm = 1.0 / (1.0 + exp(-contrast * (norm - 0.5)));
+        norm = (norm - (1.0 / (1.0 + exp(contrast * 0.5)))) /
+               ((1.0 / (1.0 + exp(-contrast * 0.5))) - (1.0 / (1.0 + exp(contrast * 0.5))));
+        norm = clamp(norm, 0.0, 1.0);
 
-        vec3 clinicalColor = vec3(norm);
-        clinicalColor.b *= 1.08;
-        clinicalColor.r *= 0.98;
-
-        FragColor = vec4(clinicalColor, 1.0);
+        FragColor = vec4(clinicalColormap(norm), 1.0);
     } 
     
     else {
