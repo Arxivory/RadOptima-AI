@@ -364,3 +364,4 @@ FodyWeavers.xsd
 
 temp_ai_out/
 explicit_vr/
+session_cache/

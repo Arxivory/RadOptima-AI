@@ -49,6 +49,54 @@ app_state = AppState()
 last_x, last_y = 256, 256
 first_mouse = True
 
+CACHE_DIR = "./data/session_cache"
+CACHE_RAW_PATH = os.path.join(CACHE_DIR, "volume_raw.npy")
+CACHE_AI_PATH  = os.path.join(CACHE_DIR, "volume_ai.npy")
+CACHE_META_PATH = os.path.join(CACHE_DIR, "meta.npy")
+
+def save_session_cache(raw_volume, ai_volume, current_slice, depth, selected_path):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    np.save(CACHE_RAW_PATH, raw_volume)
+    np.save(CACHE_AI_PATH,  ai_volume)
+    np.save(CACHE_META_PATH, np.array([current_slice, depth], dtype=np.int32))
+    with open(os.path.join(CACHE_DIR, "last_path.txt"), "w") as f:
+        f.write(selected_path)
+    print("[Cache] Session saved to disk.")
+
+def load_session_cache(engine):
+    global app_state
+    try:
+        if not (os.path.exists(CACHE_RAW_PATH) and os.path.exists(CACHE_AI_PATH)):
+            return False
+
+        print("[Cache] Found previous session. Restoring...")
+        app_state.status_message = "Restoring last session from cache..."
+
+        raw_volume = np.load(CACHE_RAW_PATH)
+        ai_volume  = np.load(CACHE_AI_PATH)
+        meta       = np.load(CACHE_META_PATH)
+
+        app_state.volume_raw    = raw_volume
+        app_state.volume_ai     = ai_volume
+        app_state.depth         = int(meta[1])
+        app_state.current_slice = int(meta[0])
+
+        with open(os.path.join(CACHE_DIR, "last_path.txt"), "r") as f:
+            app_state.selected_path = f.read().strip()
+
+        engine.upload_volume(raw_volume)
+        engine.upload_ai_volume(ai_volume)
+        engine.set_current_slice(app_state.current_slice)
+
+        app_state.current_state  = STATE_READY_ALL
+        app_state.status_message = f"Session restored. {app_state.depth} slices | AI enhanced."
+        print("[Cache] Session restored successfully.")
+        return True
+
+    except Exception as e:
+        print(f"[Cache] Restore failed, starting fresh: {e}")
+        return False
+
 def open_folder_dialog():
 	root = tk.Tk()
 	root.withdraw()
@@ -65,6 +113,10 @@ def bg_load_raw(directory, engine):
         app_state.status_message = "Clearing previous volume cache..."
 
         engine.reset_engine()
+
+        for f in [CACHE_RAW_PATH, CACHE_AI_PATH, CACHE_META_PATH, os.path.join(CACHE_DIR, "last_path.txt")]:
+            if os.path.exists(f):
+                os.remove(f)
 
         temp_ai_dir = "./data/temp_ai_out"
         if os.path.exists(temp_ai_dir):
@@ -139,6 +191,8 @@ def bg_run_ai(original_path, engine, raw_volume=None):
             engine.set_current_slice(app_state.current_slice)
 
         engine.upload_ai_volume(ai_volume)
+
+        save_session_cache(raw_volume, ai_volume, app_state.current_slice, app_state.depth, original_path)
 
         app_state.current_state = STATE_READY_ALL
         app_state.status_message = f"Ready. {app_state.depth} slices | AI enhanced."
@@ -234,6 +288,8 @@ def main():
     engine.compile_shader(v_src, f_src)
 
     engine.set_window_level(400, 40)
+
+    load_session_cache(engine)
 
     while not glfw.window_should_close(window):
         glfw.poll_events()
