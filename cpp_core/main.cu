@@ -297,8 +297,8 @@ public:
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
 
-        glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I, width, height, depth, 0,
-            GL_RED_INTEGER, GL_SHORT, buf.ptr);
+        glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,
+            GL_RED, GL_SHORT, buf.ptr);
     }
 
     void flush_pending_uploads() {
@@ -316,9 +316,9 @@ public:
             float borderColor[] = { -1024.0f, 0.0f, 0.0f, 0.0f };
             glTexParameterfv(GL_TEXTURE_3D, GL_TEXTURE_BORDER_COLOR, borderColor);
             glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-            glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I,
+            glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F,
                 pendingWidth, pendingHeight, pendingDepth, 0,
-                GL_RED_INTEGER, GL_SHORT, pendingRawVolume.data());
+                GL_RED, GL_SHORT, pendingRawVolume.data());
 
             pendingRawVolume.clear();
             pendingRawVolume.shrink_to_fit();
@@ -338,9 +338,9 @@ public:
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
 
             glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-            glTexImage3D(GL_TEXTURE_3D, 0, GL_R16I,
+            glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F,
                 width, height, depth, 0,
-                GL_RED_INTEGER, GL_SHORT, pendingAIVolume.data());
+                GL_RED, GL_SHORT, pendingAIVolume.data());
 
             pendingAIVolume.clear();
             pendingAIVolume.shrink_to_fit();
@@ -376,6 +376,9 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
 
         update_lens_uniform();
+
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowWidth"), windowWidth);
+        glUniform1f(glGetUniformLocation(shaderProgram, "windowLevel"), windowLevel);
 
         glUniform1i(glGetUniformLocation(shaderProgram, "aiReady"),
             cpuVolumeAI.empty() ? 0 : 1);
