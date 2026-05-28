@@ -1,6 +1,6 @@
 ﻿# RadOptima AI
 
-<img src="assets/RadOptima-AI Preview.png" alt="RadOptima-AI Preview" width="500">
+<img src="assets/RadOptima-AI-Preview.png" alt="RadOptima-AI Preview" width="500">
 
 **RadOptima AI** is a real-time medical imaging system designed to address one of the most critical challenges in modern radiology:  
 > **How can we achieve high-quality diagnostic imaging while minimizing radiation exposure and preserving clinical trust?**
