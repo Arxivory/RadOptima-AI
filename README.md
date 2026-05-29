@@ -123,7 +123,7 @@ This enables:
 
 The denoising model used in this project is based on prior research in medical imaging.
 
-If you use or reference this system, please cite their paper:
+If you use or reference this system, please cite their paper and model:
 
 > E. Eulig, B. Ommer, and M. Kachelrieß,  
 > *“Benchmarking deep learning-based low-dose CT image denoising algorithms,”*  
@@ -143,5 +143,4 @@ If you use or reference this system, please cite their paper:
 
 ## Status
 
- **Actively in Development**  
-Core systems (rendering, AI pipeline, interop) are being built and optimized. File management is also in progress.
+ **Actively in Development**  on UI Improvements
